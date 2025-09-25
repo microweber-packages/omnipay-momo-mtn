@@ -168,7 +168,8 @@ $response = $gateway->purchase([
     'payerPhone' => '56733123453',
     'payerMessage' => 'Payment for premium subscription',
     'payeeNote' => 'Monthly subscription fee',
-    'externalId' => 'unique-external-reference' // optional
+    'externalId' => 'unique-external-reference', // optional
+    'callbackUrl' => 'https://yoursite.com/momo/callback' // optional
 ])->send();
 
 if ($response->isSuccessful()) {
@@ -177,6 +178,149 @@ if ($response->isSuccessful()) {
 } else {
     echo "Error: " . $response->getMessage();
 }
+```
+
+### Callback URL Integration
+
+MTN Mobile Money supports callback URLs to notify your application when payment status changes:
+
+```php
+// Set up payment with callback URL
+$response = $gateway->purchase([
+    'amount' => '100.00',
+    'currency' => 'EUR',
+    'payerPhone' => '56733123453',
+    'payerMessage' => 'Order payment',
+    'payeeNote' => 'E-commerce purchase',
+    'callbackUrl' => 'https://yoursite.com/webhooks/momo'
+])->send();
+
+if ($response->isSuccessful()) {
+    // Payment request submitted successfully
+    // MTN will send callback to your URL when status changes
+    echo "Payment initiated: " . $response->getTransactionReference();
+}
+```
+
+#### Callback URL Requirements
+
+- **HTTPS Required**: Callback URLs must use HTTPS in production
+- **POST Method**: MTN sends HTTP POST requests to your callback URL
+- **Response**: Your endpoint should respond with HTTP 200 OK
+- **Timeout**: MTN will timeout after 30 seconds
+
+#### Example Callback Handler
+
+```php
+// webhook endpoint: /webhooks/momo
+<?php
+// Verify the request is from MTN (implement your own verification)
+$payload = json_decode(file_get_contents('php://input'), true);
+
+if ($payload) {
+    $referenceId = $payload['referenceId'] ?? null;
+    $status = $payload['status'] ?? null;
+    $financialTransactionId = $payload['financialTransactionId'] ?? null;
+    
+    // Update your database with the payment status
+    switch ($status) {
+        case 'SUCCESSFUL':
+            // Payment completed successfully
+            updatePaymentStatus($referenceId, 'completed');
+            break;
+        case 'FAILED':
+        case 'REJECTED':
+            // Payment failed
+            updatePaymentStatus($referenceId, 'failed');
+            break;
+        case 'PENDING':
+            // Still waiting for user action
+            updatePaymentStatus($referenceId, 'pending');
+            break;
+    }
+    
+    // Return 200 OK to acknowledge receipt
+    http_response_code(200);
+    echo "OK";
+} else {
+    http_response_code(400);
+    echo "Invalid payload";
+}
+#### Callback Payload Example
+
+MTN sends a JSON payload to your callback URL:
+
+```json
+{
+  "referenceId": "5a6f0a85-d29d-4b47-952d-532fabc94977",
+  "status": "SUCCESSFUL",
+  "amount": "100.00",
+  "currency": "EUR",
+  "financialTransactionId": "1234567890",
+  "externalId": "order-12345",
+  "payer": {
+    "partyIdType": "MSISDN",
+    "partyId": "56733123453"
+  },
+  "payerMessage": "Payment for order",
+  "payeeNote": "Order payment received",
+  "reason": null
+}
+```
+
+#### Testing Callbacks with webhook.site
+
+For development and testing, use webhook.site to easily inspect callbacks:
+
+```php
+// Generate a unique webhook.site URL
+$webhookUrl = 'https://webhook.site/' . uniqid('momo-test-');
+
+$response = $gateway->purchase([
+    'amount' => '50.00',
+    'currency' => 'EUR',
+    'payerPhone' => '56733123453',
+    'callbackUrl' => $webhookUrl,
+    // ... other parameters
+])->send();
+
+if ($response->isSuccessful()) {
+    echo "Visit your webhook URL to see callbacks: " . $webhookUrl;
+}
+```
+
+#### Production Callback Setup
+
+For production environments:
+
+1. **Use HTTPS**: Only HTTPS URLs are accepted in production
+2. **Implement Security**: Verify callback authenticity
+3. **Handle Idempotency**: Process duplicate callbacks safely
+4. **Return 200 OK**: Always respond with HTTP 200
+
+```php
+// Production callback handler with security
+<?php
+// 1. Verify HTTPS in production
+if (!isset($_SERVER['HTTPS']) && $_ENV['APP_ENV'] === 'production') {
+    http_response_code(403);
+    exit('HTTPS required');
+}
+
+// 2. Verify request source (implement your verification logic)
+if (!verifyMTNCallback($_SERVER, getallheaders())) {
+    http_response_code(403);
+    exit('Unauthorized');
+}
+
+// 3. Process callback with idempotency
+$payload = json_decode(file_get_contents('php://input'), true);
+processCallbackSafely($payload);
+
+// 4. Always return 200 OK
+http_response_code(200);
+echo "OK";
+?>
 ```
 
 ### Decimal Amount Handling
@@ -328,6 +472,21 @@ vendor/bin/phpunit --testdox
 - **Account Tests**: Balance and active status checking
 - **Integration Tests**: Full payment workflows
 - **Validation Tests**: Parameter validation and error handling
+
+## Examples
+
+The `examples/` directory contains practical code samples:
+
+- **`callback-webhook-test.php`** - Test callback URLs with webhook.site
+- **`production-callback-handler.php`** - Production-ready callback handler
+
+```bash
+# Test callback functionality
+php examples/callback-webhook-test.php
+
+# View production callback handler example
+cat examples/production-callback-handler.php
+```
 
 ## Contributing
 

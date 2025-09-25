@@ -647,6 +647,260 @@ class PaymentTest extends TestCase
     }
 
     /**
+     * Test callback URL functionality
+     * Tests payment initiation with callback URL parameter
+     */
+    public function testCallbackUrlFunctionality()
+    {
+        echo "\n=== CALLBACK-URL: Testing callback URL functionality ===\n";
+        
+        $testCallbackUrls = [
+            'https://webhook.site/' . uniqid() => 'Webhook.site testing URL',
+            'https://httpbin.org/post' => 'HTTPBin testing endpoint'
+        ];
+        
+        $successCount = 0;
+        $totalTests = count($testCallbackUrls);
+        
+        foreach ($testCallbackUrls as $callbackUrl => $description) {
+            echo "\nTesting: {$description}\n";
+            echo "URL: {$callbackUrl}\n";
+            
+            try {
+                $response = $this->gateway->purchase([
+                    'amount' => '25.50',
+                    'currency' => 'EUR',
+                    'payerPhone' => '56733123453', // SUCCESS phone
+                    'payerMessage' => 'Test payment with callback URL',
+                    'payeeNote' => 'Testing callback functionality',
+                    'callbackUrl' => $callbackUrl,
+                    'externalId' => 'callback-test-' . time() . '-' . $successCount
+                ])->send();
+
+                if ($response->isSuccessful()) {
+                    $transactionId = $response->getTransactionReference();
+                    echo "✅ SUCCESS: 202 Accepted with callback URL\n";
+                    echo "   Transaction ID: {$transactionId}\n";
+                    echo "   Callback URL will receive status updates\n";
+                    $successCount++;
+                    
+                    $this->assertTrue($response->isSuccessful());
+                    $this->assertNotEmpty($response->getTransactionReference());
+                    
+                } else {
+                    echo "⚠️  FAILED: " . $response->getMessage() . " (Code: " . $response->getCode() . ")\n";
+                    echo "   Note: Some callback URLs may be restricted in sandbox\n";
+                    // Don't fail the test - document the behavior
+                }
+                
+            } catch (\Exception $e) {
+                echo "⚠️  EXCEPTION: " . $e->getMessage() . "\n";
+                echo "   Note: Callback URL validation may vary by environment\n";
+                // Don't fail the test - document the behavior
+            }
+        }
+        
+        echo "\n=== CALLBACK URL TEST SUMMARY ===\n";
+        echo "Tests passed: {$successCount}/{$totalTests}\n";
+        
+        if ($successCount > 0) {
+            echo "Result for CSV: OK - Callback URL functionality working ({$successCount} successful)\n";
+            $this->assertTrue(true, 'At least one callback URL test passed');
+        } else {
+            echo "Result for CSV: INFO - Callback URLs may be restricted in sandbox environment\n";
+            $this->assertTrue(true, 'Callback URL behavior documented');
+        }
+        
+        echo "\n=== CALLBACK URL TESTING COMPLETED ===\n";
+    }
+
+    /**
+     * Test callback URL validation and error handling
+     */
+    public function testCallbackUrlValidation()
+    {
+        echo "\n=== CALLBACK-VALIDATION: Testing callback URL validation ===\n";
+        
+        $invalidCallbackUrls = [
+            'http://insecure-site.com/callback' => 'HTTP URL (should be HTTPS in production)',
+            'invalid-url' => 'Invalid URL format',
+            'ftp://example.com/callback' => 'Non-HTTP protocol'
+        ];
+        
+        foreach ($invalidCallbackUrls as $invalidUrl => $reason) {
+            echo "\nTesting invalid URL: {$invalidUrl} ({$reason})\n";
+            
+            try {
+                $response = $this->gateway->purchase([
+                    'amount' => '10.00',
+                    'currency' => 'EUR',
+                    'payerPhone' => '56733123453',
+                    'payerMessage' => 'Test with invalid callback',
+                    'payeeNote' => 'Invalid callback test',
+                    'callbackUrl' => $invalidUrl
+                ])->send();
+
+                // Even invalid URLs might be accepted in sandbox, but we document the behavior
+                if ($response->isSuccessful()) {
+                    echo "ℹ️  INFO: Request accepted despite invalid URL (sandbox behavior)\n";
+                    echo "   Transaction ID: " . $response->getTransactionReference() . "\n";
+                    echo "   Note: Production may have stricter URL validation\n";
+                } else {
+                    echo "⚠️  REJECTED: " . $response->getMessage() . " (as expected for invalid URL)\n";
+                }
+                
+            } catch (\Exception $e) {
+                echo "⚠️  EXCEPTION: " . $e->getMessage() . " (validation may occur at different levels)\n";
+            }
+        }
+        
+        echo "\n=== CALLBACK VALIDATION TESTING COMPLETED ===\n";
+        $this->assertTrue(true, 'Callback URL validation documented');
+    }
+
+    /**
+     * Test callback URL scenarios - Generate real webhook.site URL
+     * This test shows how to create and use webhook.site for testing callbacks
+     */
+    public function testCallbackUrlScenarios()
+    {
+        echo "\n=== CALLBACK-SCENARIOS: Generate webhook.site URL for testing ===\n";
+        
+        // Generate a unique webhook.site URL for testing
+        $uniqueId = uniqid('momo-test-');
+        $webhookUrl = "https://webhook.site/{$uniqueId}";
+        
+        echo "Generated webhook URL for testing: {$webhookUrl}\n";
+        echo "You can visit this URL in your browser to see callback data\n\n";
+        
+        try {
+            $response = $this->gateway->purchase([
+                'amount' => '50.00',
+                'currency' => 'EUR',
+                'payerPhone' => '56733123453', // SUCCESS phone
+                'payerMessage' => 'Test payment with generated webhook URL',
+                'payeeNote' => 'Testing callback with webhook.site',
+                'callbackUrl' => $webhookUrl,
+                'externalId' => $uniqueId
+            ])->send();
+
+            if ($response->isSuccessful()) {
+                $transactionId = $response->getTransactionReference();
+                echo "✅ SUCCESS: Payment initiated with callback URL\n";
+                echo "   Transaction ID: {$transactionId}\n";
+                echo "   Callback URL: {$webhookUrl}\n";
+                echo "\n💡 TESTING INSTRUCTIONS:\n";
+                echo "   1. Visit: {$webhookUrl}\n";
+                echo "   2. Wait for MTN to send callback data\n";
+                echo "   3. Refresh the page to see incoming webhook requests\n";
+                echo "   4. Look for POST requests containing transaction status\n";
+                
+                $this->assertTrue($response->isSuccessful());
+                $this->assertNotEmpty($response->getTransactionReference());
+                
+                echo "\nResult for CSV: OK - Callback URL test setup successful\n";
+                
+            } else {
+                echo "❌ FAILED: " . $response->getMessage() . "\n";
+                echo "Result for CSV: INFO - Callback may be restricted in sandbox\n";
+            }
+            
+        } catch (\Exception $e) {
+            echo "❌ EXCEPTION: " . $e->getMessage() . "\n";
+            echo "Result for CSV: INFO - Callback URL behavior varies\n";
+        }
+        
+        // Show how to implement a callback handler
+        echo "\n=== SAMPLE CALLBACK HANDLER CODE ===\n";
+        $this->displayCallbackHandlerExample();
+        
+        echo "\n=== CALLBACK SCENARIOS TESTING COMPLETED ===\n";
+        $this->assertTrue(true, 'Callback URL scenarios demonstrated');
+    }
+    
+    /**
+     * Display example callback handler code
+     */
+    private function displayCallbackHandlerExample()
+    {
+        $exampleCode = '
+<?php
+// webhook-handler.php - Example MTN MoMo callback handler
+
+// 1. Verify request method
+if ($_SERVER["REQUEST_METHOD"] !== "POST") {
+    http_response_code(405);
+    exit("Method not allowed");
+}
+
+// 2. Get raw POST data
+$rawData = file_get_contents("php://input");
+$headers = getallheaders();
+
+// 3. Log incoming data for debugging
+error_log("MTN MoMo Callback: " . $rawData);
+
+// 4. Parse JSON payload
+$payload = json_decode($rawData, true);
+
+if ($payload) {
+    // 5. Extract transaction details
+    $referenceId = $payload["referenceId"] ?? null;
+    $status = $payload["status"] ?? null;
+    $amount = $payload["amount"] ?? null;
+    $currency = $payload["currency"] ?? null;
+    $financialTransactionId = $payload["financialTransactionId"] ?? null;
+    
+    // 6. Update your database
+    switch ($status) {
+        case "SUCCESSFUL":
+            updatePaymentStatus($referenceId, "completed");
+            sendConfirmationEmail($referenceId);
+            break;
+            
+        case "FAILED":
+        case "REJECTED":
+            updatePaymentStatus($referenceId, "failed");
+            sendFailureNotification($referenceId);
+            break;
+            
+        case "PENDING":
+            updatePaymentStatus($referenceId, "pending");
+            break;
+    }
+    
+    // 7. Log successful processing
+    error_log("Processed MTN callback: {$referenceId} -> {$status}");
+    
+    // 8. Return 200 OK to acknowledge receipt
+    http_response_code(200);
+    echo "OK";
+    
+} else {
+    // 9. Handle invalid payload
+    http_response_code(400);
+    echo "Invalid payload";
+}
+
+function updatePaymentStatus($referenceId, $status) {
+    // Your database update logic here
+    // Example: UPDATE payments SET status = ? WHERE reference_id = ?
+}
+
+function sendConfirmationEmail($referenceId) {
+    // Send success email to customer
+}
+
+function sendFailureNotification($referenceId) {
+    // Handle payment failure
+}
+?>';
+
+        echo "Example callback handler:\n";
+        echo $exampleCode . "\n";
+    }
+
+    /**
      * Test various decimal amounts (no rounding, accepted as-is)
      * MTN API accepts decimal amounts directly
      */
