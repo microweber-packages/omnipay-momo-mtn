@@ -134,18 +134,17 @@ class PurchaseRequest extends AbstractMoMoRequest
         $currency = $this->getCurrency() ?: 'EUR';
         $payerPhone = $this->formatPhoneNumber($this->getPayerPhone());
 
-        // Convert amount to whole number (MTN API expects integer amounts)
+        // Validate amount is positive
         $numericAmount = floatval($amount);
         if ($numericAmount <= 0) {
             throw new InvalidRequestException('Amount must be positive');
         }
         
-        // Round to nearest whole number and ensure minimum is 1
-       // $wholeAmount = max(1, (string)intval(round($numericAmount)));
-        $wholeAmount = $numericAmount;
+        // Use decimal amount directly (no rounding)
+        $finalAmount = (string)$numericAmount;
 
         return [
-            'amount' => $wholeAmount,
+            'amount' => $finalAmount,
             'currency' => $currency,
             'externalId' => $this->getExternalId() ?: $this->generateUuid(),
             'payer' => [
