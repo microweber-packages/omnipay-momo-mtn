@@ -395,16 +395,6 @@ For detailed API documentation, visit:
 - cURL extension
 - JSON extension
 
-## Changelog
-
-### v1.0.0 (2024-XX-XX)
-- Initial release
-- Complete authentication flow
-- Payment processing (RequestToPay)
-- Payment status checking
-- Account balance and status checking
-- Comprehensive test suite
-- Full sandbox integration
 
 ## Support
 
