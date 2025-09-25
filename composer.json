@@ -1,0 +1,44 @@
+{
+    "name": "microweber-packages/omnipay-momo-mtn",
+    "type": "library",
+    "description": "MoMo payment gateway driver for Omnipay library",
+    "keywords": [
+        
+    ],
+    "homepage": "https://github.com/microweber-packages/omnipay-momo-mtn",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Peter Ivanov",
+            "email": "peter@microweber.com"
+        }
+    ],
+    "require": {
+       
+        "omnipay/common": "^3.4"
+    },
+    "require-dev": {
+        "http-interop/http-factory-guzzle": "^1.2",
+        "omnipay/tests": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "Omnipay\\MoMoMtn\\": "src"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Omnipay\\MoMoMtn\\Tests\\": "tests"
+        }
+    },
+    "scripts": {
+        "test": "\"vendor/bin/phpunit\""
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "php-http/discovery": true
+        }
+    }
+    
+}
